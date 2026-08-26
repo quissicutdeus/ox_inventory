@@ -1,0 +1,42 @@
+# Downstream fork check. This fork exists to carry the item list the Qbox
+# recipe copies over data/items.lua on every bootstrap (see the commit that
+# added it), so what is worth verifying is that the resource still installs
+# and its web UI still builds -- most likely to break on a merge from
+# upstream.
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    name: Build web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # ox_inventory is bun-managed upstream (web/bun.lock). Pinned to the
+          # version the consuming server runs, so a lockfile-format bump shows
+          # up as a deliberate change here rather than as a dirty tree there.
+          bun-version: "1.4"
+
+      - name: Install dependencies
+        working-directory: web
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: web
+        run: bun run build
+
+      - name: Verify the build emitted something
+        run: |
+          set -eu
+          test -d web/build || { echo "::error::web/build was not created"; exit 1; }
+          test -n "$(ls -A web/build)" || { echo "::error::web/build is empty"; exit 1; }
+          ls -la web/build
